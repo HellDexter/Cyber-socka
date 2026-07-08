@@ -94,7 +94,16 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
-      const data = await response.json();
+      
+      let data: any;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const textError = await response.text();
+        throw new Error(textError || `Chyba serveru s kódem ${response.status}`);
+      }
+
       if (!response.ok) {
         throw new Error(data.error || "Nepodařilo se stáhnout webovou stránku.");
       }
@@ -128,7 +137,16 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      const data = await response.json();
+
+      let data: any;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const textError = await response.text();
+        throw new Error(textError || `Chyba serveru s kódem ${response.status}`);
+      }
+
       if (!response.ok) {
         throw new Error(data.error || "Nepodařilo se navrhnout témata.");
       }
@@ -161,7 +179,16 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, focus, url }),
       });
-      const data = await response.json();
+
+      let data: any;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const textError = await response.text();
+        throw new Error(textError || `Chyba serveru s kódem ${response.status}`);
+      }
+
       if (!response.ok) {
         throw new Error(data.error || "Chyba při komunikaci s generátorem.");
       }
