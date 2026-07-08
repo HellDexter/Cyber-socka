@@ -1,19 +1,15 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import * as cheerio from "cheerio";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+app.use(express.json({ limit: "10mb" }));
 
-  app.use(express.json({ limit: "10mb" }));
-
-  // Helper to generate suggested topics using Gemini 3.5
+// Helper to generate suggested topics using Gemini 3.5
   async function generateSuggestedTopics(text: string, apiKey: string): Promise<string[]> {
     try {
       const aiInstance = new GoogleGenAI({
@@ -220,55 +216,61 @@ Všechny texty musí být vygenerované tak, aby po zkopírování vypadaly skv�
     }
   });
 
-  // Vite integration
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+  // Vite and Server starting logic (Only when NOT running on Vercel as a Serverless function)
+  if (!process.env.VERCEL) {
+    const initServer = async () => {
+      if (process.env.NODE_ENV !== "production") {
+        const { createServer: createViteServer } = await import("vite");
+        const vite = await createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        });
+        app.use(vite.middlewares);
+      } else {
+        const distPath = path.join(process.cwd(), "dist");
+        app.use(express.static(distPath));
+        app.get("*", (req, res) => {
+          res.sendFile(path.join(distPath, "index.html"));
+        });
+      }
+
+      const PORT = 3000;
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://0.0.0.0:${PORT}`);
+      });
+    };
+    initServer();
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-  });
-}
-
-async function scrapeUrl(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP chyba ${response.status}: ${response.statusText}`);
-  }
-  const html = await response.text();
-  const $ = cheerio.load(html);
-  
-  // Clean elements
-  $("script, style, head, nav, footer, iframe, header, noscript, aside, form").remove();
-  
-  // Extract paragraphs, headings, lists
-  const textBlocks: string[] = [];
-  $("h1, h2, h3, p, li").each((_, el) => {
-    const txt = $(el).text().trim();
-    if (txt) {
-      textBlocks.push(txt);
+  async function scrapeUrl(url: string): Promise<string> {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP chyba ${response.status}: ${response.statusText}`);
     }
-  });
-  
-  const text = textBlocks.join("\n\n");
-  if (!text) {
-    throw new Error("Na této adrese se nepodařilo nalézt žádný čitelný text.");
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    
+    // Clean elements
+    $("script, style, head, nav, footer, iframe, header, noscript, aside, form").remove();
+    
+    // Extract paragraphs, headings, lists
+    const textBlocks: string[] = [];
+    $("h1, h2, h3, p, li").each((_, el) => {
+      const txt = $(el).text().trim();
+      if (txt) {
+        textBlocks.push(txt);
+      }
+    });
+    
+    const text = textBlocks.join("\n\n");
+    if (!text) {
+      throw new Error("Na této adrese se nepodařilo nalézt žádný čitelný text.");
+    }
+    return text.substring(0, 15000); // return top 15k chars
   }
-  return text.substring(0, 15000); // return top 15k chars
-}
 
-startServer();
+  export default app;
