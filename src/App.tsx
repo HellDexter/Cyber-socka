@@ -53,6 +53,86 @@ export default function App() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Helper to intelligently transfer a social media post text to the graphic canvas
+  const transferToGraphic = (textStr: string) => {
+    if (!textStr) return;
+    
+    // Clean up text
+    const cleanedText = textStr
+      .replace(/[#*•➢➤✓💻🔒🛡️⚠️🚨]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Split into lines/paragraphs
+    const parts = textStr.split(/\n+/).map(p => p.trim()).filter(Boolean);
+    
+    let headline = "";
+    let subheadline = "";
+    
+    if (parts.length > 0) {
+      // Find first non-empty line
+      let firstLine = parts[0]
+        .replace(/^[#\s\d.*•\-—+>➢✓💻🔒🛡️⚠️🚨]+/g, "") // strip leading decorators
+        .trim();
+      
+      if (firstLine.length > 55) {
+        headline = firstLine.substring(0, 52) + "...";
+      } else {
+        headline = firstLine;
+      }
+      
+      let restOfText = parts.slice(1).join(" ");
+      if (!restOfText) {
+        if (firstLine.length > 55) {
+          headline = firstLine.substring(0, 45) + "...";
+          restOfText = firstLine.substring(45);
+        } else {
+          restOfText = "Podrobné shrnutí a analýza bezpečnostních dopadů.";
+        }
+      }
+      
+      let sub = restOfText
+        .replace(/[#*•\-—+>➢✓💻🔒🛡️⚠️🚨]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+        
+      if (sub.length > 130) {
+        subheadline = sub.substring(0, 127) + "...";
+      } else {
+        subheadline = sub;
+      }
+    } else {
+      headline = "Kybernetická Bezpečnost";
+      subheadline = "Klíčové body a doporučení pro ochranu firemních dat a systémů.";
+    }
+    
+    setGraphicHeadline(headline);
+    setGraphicSubheadline(subheadline);
+    
+    // Automatically tweak palette based on content keywords
+    const lowerText = textStr.toLowerCase();
+    if (lowerText.includes("hrozba") || lowerText.includes("sankce") || lowerText.includes("pokut") || lowerText.includes("útok") || lowerText.includes("varování") || lowerText.includes("chyb")) {
+      setGraphicPalette("warning-red");
+      setGraphicIconName("alert");
+    } else if (lowerText.includes("kod") || lowerText.includes("terminál") || lowerText.includes("databáz") || lowerText.includes("server") || lowerText.includes("system")) {
+      setGraphicPalette("dark-neon");
+      setGraphicIconName("terminal");
+    } else if (lowerText.includes("soulad") || lowerText.includes("směrnic") || lowerText.includes("nis2") || lowerText.includes("zákon") || lowerText.includes("compliance")) {
+      setGraphicPalette("corporate-blue");
+      setGraphicIconName("shield");
+    } else if (lowerText.includes("ochran") || lowerText.includes("bezpečnost") || lowerText.includes("šifrován") || lowerText.includes("data")) {
+      setGraphicPalette("success-emerald");
+      setGraphicIconName("lock");
+    } else {
+      setGraphicPalette("deep-indigo");
+      setGraphicIconName("lock");
+    }
+    
+    setSuccess("Text příspěvku byl úspěšně přenesen do šablony grafiky!");
+  };
+
   // Populate customization states once result is received
   useEffect(() => {
     if (result && result.graphic) {
@@ -804,29 +884,48 @@ export default function App() {
                             <Linkedin className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
                             LinkedIn / Strategický &amp; Compliance tón
                           </span>
-                          <button
-                            onClick={() => copyToClipboard(result.linkedin, "linkedin")}
-                            className="text-slate-500 hover:text-blue-600 flex items-center gap-1 text-xs font-bold transition-colors"
-                          >
-                            {copiedField === "linkedin" ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                <span className="text-emerald-600 font-mono">Zkopírováno</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Kopírovat</span>
-                              </>
-                            )}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => transferToGraphic(result.linkedin)}
+                              className="text-slate-500 hover:text-blue-700 flex items-center gap-1 text-xs font-bold transition-colors border-r border-slate-200 pr-2.5 mr-1"
+                              title="Přenést tento text do generátoru grafiky"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                              <span>Přenést do grafiky</span>
+                            </button>
+                            <button
+                              onClick={() => copyToClipboard(result.linkedin, "linkedin")}
+                              className="text-slate-500 hover:text-blue-600 flex items-center gap-1 text-xs font-bold transition-colors"
+                            >
+                              {copiedField === "linkedin" ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span className="text-emerald-600 font-mono">Zkopírováno</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Kopírovat</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                        <div className="p-5 text-sm leading-relaxed text-slate-700 bg-white min-h-[140px] max-h-[300px] overflow-y-auto select-text font-sans">
+                        <div 
+                          draggable="true"
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", result.linkedin);
+                          }}
+                          className="p-5 text-sm leading-relaxed text-slate-700 bg-white min-h-[140px] max-h-[300px] overflow-y-auto select-text font-sans cursor-grab active:cursor-grabbing hover:bg-slate-50/50 transition-colors relative group border-2 border-dashed border-transparent hover:border-slate-200"
+                        >
                           {result.linkedin}
+                          <div className="absolute bottom-2 right-3 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-250 font-medium flex items-center gap-1 shadow-sm">
+                            <span>💡 Přetáhněte text do modrého náhledu grafiky níže</span>
+                          </div>
                         </div>
                       </div>
                     )}
-
+ 
                     {activeTab === "x" && result && (
                       <div className="flex flex-col">
                         <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
@@ -835,6 +934,14 @@ export default function App() {
                             X (Twitter) / Max 280 znaků
                           </span>
                           <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => transferToGraphic(result.x)}
+                              className="text-slate-500 hover:text-slate-900 flex items-center gap-1 text-xs font-bold transition-colors border-r border-slate-200 pr-2.5 mr-1"
+                              title="Přenést tento text do generátoru grafiky"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                              <span>Přenést do grafiky</span>
+                            </button>
                             <span className={`text-[10px] font-mono ${result.x.length <= 280 ? 'text-slate-400' : 'text-red-500 font-bold'}`}>
                               {result.x.length} / 280
                             </span>
@@ -856,8 +963,17 @@ export default function App() {
                             </button>
                           </div>
                         </div>
-                        <div className="p-5 text-sm leading-relaxed text-slate-700 bg-white min-h-[140px] max-h-[300px] overflow-y-auto select-text font-sans">
+                        <div 
+                          draggable="true"
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", result.x);
+                          }}
+                          className="p-5 text-sm leading-relaxed text-slate-700 bg-white min-h-[140px] max-h-[300px] overflow-y-auto select-text font-sans cursor-grab active:cursor-grabbing hover:bg-slate-50/50 transition-colors relative group border-2 border-dashed border-transparent hover:border-slate-200"
+                        >
                           {result.x}
+                          <div className="absolute bottom-2 right-3 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-250 font-medium flex items-center gap-1 shadow-sm">
+                            <span>💡 Přetáhněte text do modrého náhledu grafiky níže</span>
+                          </div>
                         </div>
                         {result.x.length > 280 && (
                           <div className="p-3 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-700 flex items-center gap-2">
@@ -867,7 +983,7 @@ export default function App() {
                         )}
                       </div>
                     )}
-
+ 
                     {activeTab === "facebook" && result && (
                       <div className="flex flex-col">
                         <div className="px-4 py-2.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
@@ -875,25 +991,44 @@ export default function App() {
                             <Facebook className="w-3.5 h-3.5 text-blue-800 fill-blue-800" />
                             Facebook / Přístupná osvěta a doporučení
                           </span>
-                          <button
-                            onClick={() => copyToClipboard(result.facebook, "facebook")}
-                            className="text-slate-500 hover:text-blue-800 flex items-center gap-1 text-xs font-bold transition-colors"
-                          >
-                            {copiedField === "facebook" ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                <span className="text-emerald-600 font-mono">Zkopírováno</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Kopírovat</span>
-                              </>
-                            )}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => transferToGraphic(result.facebook)}
+                              className="text-slate-500 hover:text-blue-800 flex items-center gap-1 text-xs font-bold transition-colors border-r border-slate-200 pr-2.5 mr-1"
+                              title="Přenést tento text do generátoru grafiky"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                              <span>Přenést do grafiky</span>
+                            </button>
+                            <button
+                              onClick={() => copyToClipboard(result.facebook, "facebook")}
+                              className="text-slate-500 hover:text-blue-800 flex items-center gap-1 text-xs font-bold transition-colors"
+                            >
+                              {copiedField === "facebook" ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span className="text-emerald-600 font-mono">Zkopírováno</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Kopírovat</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                        <div className="p-5 text-sm leading-relaxed text-slate-700 bg-white min-h-[140px] max-h-[300px] overflow-y-auto select-text font-sans">
+                        <div 
+                          draggable="true"
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", result.facebook);
+                          }}
+                          className="p-5 text-sm leading-relaxed text-slate-700 bg-white min-h-[140px] max-h-[300px] overflow-y-auto select-text font-sans cursor-grab active:cursor-grabbing hover:bg-slate-50/50 transition-colors relative group border-2 border-dashed border-transparent hover:border-slate-200"
+                        >
                           {result.facebook}
+                          <div className="absolute bottom-2 right-3 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-250 font-medium flex items-center gap-1 shadow-sm">
+                            <span>💡 Přetáhněte text do modrého náhledu grafiky níže</span>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1057,13 +1192,34 @@ export default function App() {
                       </div>
 
                       {/* Right half inside generator: High DPI Canvas preview box */}
-                      <div className="md:col-span-7 flex flex-col items-center justify-center space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-150">
+                      <div 
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDraggingOver(true);
+                        }}
+                        onDragLeave={() => {
+                          setIsDraggingOver(false);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDraggingOver(false);
+                          const droppedText = e.dataTransfer.getData("text/plain");
+                          if (droppedText) {
+                            transferToGraphic(droppedText);
+                          }
+                        }}
+                        className={`md:col-span-7 flex flex-col items-center justify-center space-y-3 p-4 rounded-xl border transition-all relative ${
+                          isDraggingOver 
+                            ? "bg-blue-50 border-blue-400 ring-4 ring-blue-500/20 scale-[1.01]" 
+                            : "bg-slate-50 border-slate-150"
+                        }`}
+                      >
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block self-start">
                           Živý Náhled Grafické Karty (Canvas)
                         </span>
                         
                         {/* Interactive Canvas container with responsive sizing */}
-                        <div className="w-full flex items-center justify-center overflow-hidden">
+                        <div className="w-full flex items-center justify-center overflow-hidden relative">
                           <canvas
                             ref={canvasRef}
                             style={{
@@ -1073,6 +1229,22 @@ export default function App() {
                             }}
                             className="bg-slate-900 rounded-lg shadow-md border border-slate-200 shrink-0"
                           />
+                          
+                          {/* Animated overlay on drag over */}
+                          <AnimatePresence>
+                            {isDraggingOver && (
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-blue-600/95 rounded-lg flex flex-col items-center justify-center text-white p-6 text-center select-none backdrop-blur-sm z-10"
+                              >
+                                <Sparkles className="w-10 h-10 mb-2 animate-bounce text-cyan-300" />
+                                <p className="font-bold text-sm">Pusťte text zde</p>
+                                <p className="text-xs text-blue-100 mt-1">Okamžitě přeneseme a naformátujeme text do této grafiky</p>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                         
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 w-full justify-center">

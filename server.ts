@@ -243,34 +243,68 @@ Všechny texty musí být vygenerované tak, aby po zkopírování vypadaly skv�
   }
 
   async function scrapeUrl(url: string): Promise<string> {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP chyba ${response.status}: ${response.statusText}`);
+    if (!url) {
+      throw new Error("Nebyla zadána žádná adresa URL.");
     }
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    
-    // Clean elements
-    $("script, style, head, nav, footer, iframe, header, noscript, aside, form").remove();
-    
-    // Extract paragraphs, headings, lists
-    const textBlocks: string[] = [];
-    $("h1, h2, h3, p, li").each((_, el) => {
-      const txt = $(el).text().trim();
-      if (txt) {
-        textBlocks.push(txt);
+
+    let normalizedUrl = url.trim();
+    if (!/^https?:\/\//i.test(normalizedUrl)) {
+      normalizedUrl = "https://" + normalizedUrl;
+    }
+
+    try {
+      new URL(normalizedUrl);
+    } catch (e) {
+      throw new Error("Zadaná adresa URL nemá správný formát.");
+    }
+
+    // Set a strict 6-second timeout to prevent Vercel serverless function timeouts
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    try {
+      const response = await fetch(normalizedUrl, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 CyberSecurityScraper/1.0",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+          "Accept-Language": "cs,en-US;q=0.7,en;q=0.3"
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP chyba ${response.status}: ${response.statusText}`);
       }
-    });
-    
-    const text = textBlocks.join("\n\n");
-    if (!text) {
-      throw new Error("Na této adrese se nepodařilo nalézt žádný čitelný text.");
+
+      const html = await response.text();
+      const $ = cheerio.load(html);
+      
+      // Clean elements
+      $("script, style, head, nav, footer, iframe, header, noscript, aside, form").remove();
+      
+      // Extract paragraphs, headings, lists
+      const textBlocks: string[] = [];
+      $("h1, h2, h3, p, li").each((_, el) => {
+        const txt = $(el).text().trim();
+        if (txt) {
+          textBlocks.push(txt);
+        }
+      });
+      
+      const text = textBlocks.join("\n\n");
+      if (!text) {
+        throw new Error("Na této adrese se nepodařilo nalézt žádný čitelný text.");
+      }
+      return text.substring(0, 15000); // return top 15k chars
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutId);
+      if (fetchErr.name === "AbortError") {
+        throw new Error("Stažení stránky vypršelo (limit 6 sekund). Webová stránka neodpovídá dostatečně rychle.");
+      }
+      throw fetchErr;
     }
-    return text.substring(0, 15000); // return top 15k chars
   }
 
   export default app;
