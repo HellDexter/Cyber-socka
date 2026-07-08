@@ -1,0 +1,6 @@
+{
+  "name": "Cybersecurity Content & NotebookLM Creator",
+  "description": "Nástroj pro automatizaci tvorby příspěvků na sociální sítě a přípravu podkladových dokumentů pro NotebookLM podcasty se zaměřením na kybernetickou bezpečnost.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
