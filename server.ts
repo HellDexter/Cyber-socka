@@ -56,7 +56,7 @@ Vraťte výsledek VÝHRADNĚ jako pole řetězců v JSON formátu podle zadanéh
     return [];
   }
 
-  // API Route: Scrape URL and automatically generate suggested topics
+  // API Route: Scrape URL and automatically generate suggested topics (NOW ONLY scrapes to prevent Vercel serverless function timeouts)
   app.post("/api/scrape", async (req, res) => {
     const { url } = req.body;
     if (!url) {
@@ -64,14 +64,7 @@ Vraťte výsledek VÝHRADNĚ jako pole řetězců v JSON formátu podle zadanéh
     }
     try {
       const text = await scrapeUrl(url);
-      
-      let suggestedTopics: string[] = [];
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim() !== "") {
-        suggestedTopics = await generateSuggestedTopics(text, apiKey);
-      }
-      
-      res.json({ text, suggestedTopics });
+      res.json({ text, suggestedTopics: [] });
     } catch (err: any) {
       console.error("Chyba při scrapování:", err);
       res.status(500).json({ error: `Nepodařilo se načíst obsah z URL: ${err.message}` });

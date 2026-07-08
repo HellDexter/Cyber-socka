@@ -187,14 +187,34 @@ export default function App() {
       if (!response.ok) {
         throw new Error(data.error || "Nepodařilo se stáhnout webovou stránku.");
       }
+      
       setText(data.text);
-      if (data.suggestedTopics && Array.isArray(data.suggestedTopics) && data.suggestedTopics.length > 0) {
-        setFocusPresets(data.suggestedTopics);
-        setFocus(data.suggestedTopics[0]);
-        setSuccess("Obsah webu byl načten a byla vygenerována doporučená témata relative k obsahu!");
-      } else {
-        setSuccess("Obsah webu byl úspěšně načten a vložen do textového pole níže!");
-      }
+      setSuccess("Obsah webu byl úspěšně stažen! Nyní z něj automaticky generujeme doporučená témata...");
+      
+      // Separate background call to generate topics (avoids Vercel 10s serverless timeout)
+      setTimeout(async () => {
+        try {
+          setIsSuggestingTopics(true);
+          const suggestResponse = await fetch("/api/suggest-topics", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: data.text }),
+          });
+          if (suggestResponse.ok) {
+            const suggestData = await suggestResponse.json();
+            if (suggestData.suggestedTopics && Array.isArray(suggestData.suggestedTopics) && suggestData.suggestedTopics.length > 0) {
+              setFocusPresets(suggestData.suggestedTopics);
+              setFocus(suggestData.suggestedTopics[0]);
+              setSuccess("Obsah webu byl načten a byla úspěšně vygenerována doporučená témata na míru!");
+            }
+          }
+        } catch (suggestErr) {
+          console.error("Chyba při automatickém návrhu témat:", suggestErr);
+        } finally {
+          setIsSuggestingTopics(false);
+        }
+      }, 50);
+
     } catch (err: any) {
       setError(err.message || "Při stahování obsahu z URL došlo k chybě.");
     } finally {
@@ -253,11 +273,44 @@ export default function App() {
     setIsGenerating(true);
     setError(null);
     setSuccess(null);
+    
     try {
+      let activeText = text;
+      
+      // If text is empty but URL is specified, scrape it first client-side (to avoid combined slow scrape + slow generate server timeout)
+      if (!activeText && url) {
+        setIsScraping(true);
+        setSuccess("Nejprve stahuji a čistím obsah webové stránky...");
+        
+        const scrapeResponse = await fetch("/api/scrape", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        
+        let scrapeData: any;
+        const scrapeContentType = scrapeResponse.headers.get("content-type");
+        if (scrapeContentType && scrapeContentType.includes("application/json")) {
+          scrapeData = await scrapeResponse.json();
+        } else {
+          const scrapeTextError = await scrapeResponse.text();
+          throw new Error(scrapeTextError || `Chyba při stahování webu: ${scrapeResponse.status}`);
+        }
+        
+        if (!scrapeResponse.ok) {
+          throw new Error(scrapeData.error || "Nepodařilo se stáhnout webovou stránku.");
+        }
+        
+        activeText = scrapeData.text;
+        setText(activeText);
+        setIsScraping(false);
+        setSuccess("Web úspěšně stažen! Nyní generuji příspěvky pomocí AI...");
+      }
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, focus, url }),
+        body: JSON.stringify({ text: activeText, focus, url }),
       });
 
       let data: any;
@@ -278,6 +331,7 @@ export default function App() {
       setError(err.message || "Chyba při generování obsahu.");
     } finally {
       setIsGenerating(false);
+      setIsScraping(false);
     }
   };
 
